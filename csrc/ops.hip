@@ -594,8 +594,13 @@ template <int FORMATB, int DTYPE_OUT, int SCALE_ROWS> int igemmlt(hipblasLtHandl
     }
     else
     {
-      has_error |= checkHipblasStatus(hipblasLtMatmulDescCreate(&matmulDesc, HIPBLAS_COMPUTE_32I, HIP_R_32F));
+      has_error |= checkHipblasStatus(hipblasLtMatmulDescCreate(&matmulDesc, HIPBLAS_COMPUTE_32I, HIP_R_32I));
+      hipblasOperation_t opA = HIPBLAS_OP_N;
+      has_error |= checkHipblasStatus(hipblasLtMatmulDescSetAttribute(matmulDesc, HIPBLASLT_MATMUL_DESC_TRANSA, &opA, sizeof(opA)));
       has_error |= checkHipblasStatus(hipblasLtMatmulDescSetAttribute(matmulDesc, HIPBLASLT_MATMUL_DESC_TRANSB, &opT, sizeof(opT)));
+      hipblasLtEpilogue_t epilogue = HIPBLASLT_EPILOGUE_DEFAULT;
+      checkHipblasStatus(hipblasLtMatmulDescSetAttribute(
+        matmulDesc, HIPBLASLT_MATMUL_DESC_EPILOGUE, &epilogue, sizeof(epilogue)));
       has_error |= checkHipblasStatus(hipblasLtMatrixLayoutCreate(&Cdesc, HIP_R_8I, m, n, ldc));
       has_error |= checkHipblasStatus(hipblasLtMatrixLayoutSetAttribute(Cdesc, HIPBLASLT_MATRIX_LAYOUT_ORDER, &col32, sizeof(col32)));
       /* Algo and workspace TODO: need to rework to not be duplicated */
@@ -622,20 +627,21 @@ template <int FORMATB, int DTYPE_OUT, int SCALE_ROWS> int igemmlt(hipblasLtHandl
                                                             heuristicResult,
                                                             &returnedAlgoCount));
 
+      auto toMalloc = max(heuristicResult[0].workspaceSize, max_workspace_size);
       //NEED HIP CHECK ERROR
-      hipMalloc(&d_workspace, heuristicResult[0].workspaceSize);
+      auto err = hipMalloc(&d_workspace, toMalloc);
       if(!SCALE_ROWS)
       {
         float alpha = 1.0f, beta = 0.0f;
 
-        has_error |= checkHipblasStatus(hipblasLtMatmul(ltHandle, matmulDesc,&alpha, A, Adesc, B, Bdesc, &beta, (int8_t*)C, Cdesc, (int8_t*)C, Cdesc, &heuristicResult[0].algo, d_workspace, max_workspace_size, 0));
+        has_error |= checkHipblasStatus(hipblasLtMatmul(ltHandle, matmulDesc,&alpha, A, Adesc, B, Bdesc, &beta, (int8_t*)C, Cdesc, (int8_t*)C, Cdesc, &heuristicResult[0].algo, d_workspace, toMalloc, 0));
       }
       else
       {
         //has_error |= checkHipblasStatus(hipblasLtMatmulDescSetAttribute(matmulDesc, hipblasLt_MATMUL_DESC_POINTER_MODE, &alphaVec, sizeof(alphaVec)));
 	float beta = 0.0f;
 
-        has_error |= checkHipblasStatus(hipblasLtMatmul(ltHandle, matmulDesc, row_scale, A, Adesc, B, Bdesc, &beta, (int8_t*)C, Cdesc, (int8_t*)C, Cdesc, &heuristicResult[0].algo, d_workspace, max_workspace_size, 0));
+        has_error |= checkHipblasStatus(hipblasLtMatmul(ltHandle, matmulDesc, row_scale, A, Adesc, B, Bdesc, &beta, (int8_t*)C, Cdesc, (int8_t*)C, Cdesc, &heuristicResult[0].algo, d_workspace, toMalloc, 0));
       }
 
       hipFree(d_workspace);
