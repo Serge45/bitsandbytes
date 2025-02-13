@@ -116,6 +116,7 @@ class CUBLAS_Context:
 
     def initialize(self):
         self.context = {}
+        self.lt_context = {}
 
     @classmethod
     def get_instance(cls):
@@ -132,6 +133,13 @@ class CUBLAS_Context:
             torch.cuda.set_device(prev_device)
         return self.context[device.index]
 
+    def get_lt_context(self, device):
+        if device.index not in self.lt_context:
+            prev_device = torch.cuda.current_device()
+            torch.cuda.set_device(device)
+            self.lt_context[device.index] = ct.c_void_p(lib.get_lt_context())
+            torch.cuda.set_device(prev_device)
+        return self.lt_context[device.index]
 
 class Cusparse_Context:
     _instance = None
@@ -536,7 +544,7 @@ def nvidia_transform(
         dim1 = ct.c_int32(shape[0] * shape[1])
         dim2 = ct.c_int32(shape[2])
 
-    ptr = CUBLAS_Context.get_instance().get_context(A.device)
+    ptr = CUBLAS_Context.get_instance().get_lt_context(A.device)
     func(ptr, get_ptr(A), get_ptr(out), dim1, dim2)
 
     return out, new_state
@@ -1621,7 +1629,7 @@ def igemm(
         ldb = sA[2]
         ldc = m
 
-    ptr = CUBLAS_Context.get_instance().get_context(A.device)
+    ptr = CUBLAS_Context.get_instance().get_lt_context(A.device)
 
     # B^T @ A^T = C^T
     # [km, nk -> mn]
@@ -1715,7 +1723,7 @@ def batched_igemm(
     strideB = A.shape[1] * A.shape[2]
     strideC = A.shape[1] * B.shape[2]
 
-    ptr = CUBLAS_Context.get_instance().get_context(A.device)
+    ptr = CUBLAS_Context.get_instance().get_lt_context(A.device)
 
     is_on_gpu([B, A, out])
     lib.cbatched_igemm(

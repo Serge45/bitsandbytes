@@ -84,6 +84,7 @@ class CudaBNBNativeLibrary(BNBNativeLibrary):
     def __init__(self, lib: ct.CDLL):
         super().__init__(lib)
         lib.get_context.restype = ct.c_void_p
+        lib.get_lt_context.restype = ct.c_void_p
         if torch.version.cuda:
             lib.get_cusparse.restype = ct.c_void_p
         elif torch.version.hip:

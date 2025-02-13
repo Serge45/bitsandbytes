@@ -306,8 +306,7 @@ class CUDABackend(Backend):
         formatB = SB[1]
         prev_device = A.device
         torch.cuda.set_device(A.device)
-
-        ptr = CUBLAS_Context.get_instance().get_context(A.device)
+        ptr = CUBLAS_Context.get_instance().get_lt_context(A.device)
         ptrA = get_ptr(A)
         ptrB = get_ptr(B)
         ptrC = get_ptr(out)
